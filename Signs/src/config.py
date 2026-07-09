@@ -13,7 +13,7 @@ DATA_PROCESSED_DIR = ROOT_DIR / "data" / "processed"
 MODELS_DIR = ROOT_DIR / "models"
 
 
-CURRENT_MODEL_VERSION = "v1"
+CURRENT_MODEL_VERSION = "v2"
 CURRENT_MODEL_DIR = MODELS_DIR / CURRENT_MODEL_VERSION
 LABELS_PATH = CURRENT_MODEL_DIR / "labels.json"
 MODEL_PATH = CURRENT_MODEL_DIR / "model.keras"
@@ -27,6 +27,12 @@ SIGNS: list[str] = [
     "non",
     "sil_vous_plait",
     "au_revoir",
+    "je",
+    "tu",
+    "boire",
+    "manger",
+    "aider",
+    "ca_va",
 ]
 
 # --- MediaPipe Hands ---

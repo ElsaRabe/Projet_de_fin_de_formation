@@ -34,20 +34,28 @@ def load_model_and_labels():
 def main() -> None:
     st.set_page_config(page_title="Traducteur LSF", layout="wide")
     st.title("🤟 Traducteur de langue des signes (LSF)")
-    st.caption("Reconnaissance en temps réel de signes statiques via la webcam — MVP")
+    st.caption("Reconnaissance en temps réel de signes dynamiques via la webcam — MVP")
 
     model, labels = load_model_and_labels()
 
     if "running" not in st.session_state:
         st.session_state.running = False
+    if "sentence" not in st.session_state:
+        st.session_state.sentence = []
+    if "already_appended" not in st.session_state:
+        st.session_state.already_appended = False
 
     col_video, col_info = st.columns([2, 1])
 
     with col_info:
         start_button = st.button("▶️ Démarrer la webcam", use_container_width=True)
         stop_button = st.button("⏹️ Arrêter", use_container_width=True)
+        clear_button = st.button("🗑️ Effacer la phrase", use_container_width=True)
         st.divider()
         prediction_placeholder = st.empty()
+        st.divider()
+        st.subheader("Phrase reconnue")
+        sentence_placeholder = st.empty()
         st.divider()
         st.subheader("Signes reconnus")
         st.write(", ".join(labels.values()))
@@ -59,6 +67,14 @@ def main() -> None:
         st.session_state.running = True
     if stop_button:
         st.session_state.running = False
+    if clear_button:
+        st.session_state.sentence = []
+
+    def render_sentence():
+        text = " ".join(st.session_state.sentence) if st.session_state.sentence else "_(vide)_"
+        sentence_placeholder.markdown(f"### {text}")
+
+    render_sentence()
 
     if not st.session_state.running:
         prediction_placeholder.info("En attente... clique sur *Démarrer la webcam*.")
@@ -92,6 +108,7 @@ def main() -> None:
                 buffer.append(extract_frame_features(results))
             else:
                 buffer.clear()
+                st.session_state.already_appended = False  # main partie : prêt pour le prochain signe
 
             buffer_ready = len(buffer) == SEQUENCE_LENGTH
             predicted_sign = None
@@ -102,8 +119,14 @@ def main() -> None:
                 probabilities = model.predict(sequence, verbose=0)[0]
                 class_index = int(np.argmax(probabilities))
                 confidence = float(probabilities[class_index])
+
                 if confidence >= CONFIDENCE_THRESHOLD:
                     predicted_sign = labels[class_index]
+
+                    if not st.session_state.already_appended:
+                        st.session_state.sentence.append(predicted_sign)
+                        st.session_state.already_appended = True
+                        render_sentence()
 
             display_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             video_placeholder.image(display_frame, channels="RGB", use_container_width=True)

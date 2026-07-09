@@ -2,6 +2,8 @@
 
 Maintient un buffer glissant des dernières SEQUENCE_LENGTH frames et prédit
 en continu. N'affiche un signe que si la confiance dépasse CONFIDENCE_THRESHOLD.
+Construit également une phrase : chaque signe reconnu est ajouté une seule
+fois par apparition de la main (retirer la main = passer au signe suivant).
 """
 
 import json
@@ -29,8 +31,15 @@ def load_labels() -> dict[int, str]:
     return {int(k): v for k, v in raw.items()}
 
 
-def _draw_prediction(frame, sign: str | None, confidence: float, buffer_ready: bool, hand_detected: bool) -> None:
-    """Affiche le signe reconnu et son score de confiance à l'écran."""
+def _draw_prediction(
+    frame,
+    sign: str | None,
+    confidence: float,
+    buffer_ready: bool,
+    hand_detected: bool,
+    sentence: list[str],
+) -> None:
+    """Affiche le signe reconnu, son score de confiance, et la phrase en construction."""
     if not hand_detected:
         text = "Aucune main detectee"
         color = (150, 150, 150)
@@ -47,6 +56,11 @@ def _draw_prediction(frame, sign: str | None, confidence: float, buffer_ready: b
     cv2.rectangle(frame, (0, 0), (frame.shape[1], 60), (30, 30, 30), -1)
     cv2.putText(frame, text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
 
+    # Phrase en construction, affichée en bas de l'écran
+    phrase = " ".join(sentence) if sentence else "(vide - 'c' pour effacer)"
+    cv2.rectangle(frame, (0, frame.shape[0] - 50), (frame.shape[1], frame.shape[0]), (30, 30, 30), -1)
+    cv2.putText(frame, phrase, (20, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
 
 def main() -> None:
     if not MODEL_PATH.exists():
@@ -62,7 +76,10 @@ def main() -> None:
     hands_detector = create_hands_detector()
     buffer: deque[np.ndarray] = deque(maxlen=SEQUENCE_LENGTH)
 
-    print("Reconnaissance en cours. Appuie sur Échap pour quitter.\n")
+    sentence: list[str] = []
+    already_appended_this_session = False
+
+    print("Reconnaissance en cours. Échap : quitter | c : effacer la phrase.\n")
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
     try:
         while True:
@@ -82,6 +99,7 @@ def main() -> None:
                 buffer.append(extract_frame_features(results))
             else:
                 buffer.clear()  # réinitialise : on ne veut pas mélanger avant/après une absence de main
+                already_appended_this_session = False  # main partie : prêt pour le prochain signe
 
             buffer_ready = len(buffer) == SEQUENCE_LENGTH
 
@@ -98,12 +116,18 @@ def main() -> None:
                 if confidence >= CONFIDENCE_THRESHOLD:
                     predicted_sign = labels[class_index]
 
-            _draw_prediction(frame, predicted_sign, confidence, buffer_ready, hand_detected)
+                    if not already_appended_this_session:
+                        sentence.append(predicted_sign)
+                        already_appended_this_session = True
+
+            _draw_prediction(frame, predicted_sign, confidence, buffer_ready, hand_detected, sentence)
             cv2.imshow(WINDOW_NAME, frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key == 27:
                 break
+            if key == ord("c"):
+                sentence.clear()
             try:
                 if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
                     break
