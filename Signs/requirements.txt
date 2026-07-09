@@ -1,0 +1,8 @@
+opencv-python
+mediapipe==0.10.14
+tensorflow==2.17.0
+protobuf>=4.25.3,<5
+numpy
+streamlit
+scikit-learn
+keras
